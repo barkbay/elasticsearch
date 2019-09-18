@@ -76,6 +76,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public ActionRequestValidationException validate() {
+        System.err.println(Thread.currentThread().getName() + " - UpdateSettingsRequest.validate(...)");
         ActionRequestValidationException validationException = null;
         if (settings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
@@ -168,6 +169,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        System.err.println(Thread.currentThread().getName() + " - UpdateSettingsRequest.readFrom(...)");
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -177,6 +179,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        System.err.println(Thread.currentThread().getName() + " - UpdateSettingsRequest.writeTo(...)");
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
