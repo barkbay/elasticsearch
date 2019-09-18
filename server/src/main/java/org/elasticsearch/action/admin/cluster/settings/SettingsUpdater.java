@@ -58,7 +58,12 @@ final class SettingsUpdater {
     synchronized ClusterState updateSettings(
             final ClusterState currentState, final Settings transientToApply, final Settings persistentToApply, final Logger logger) {
         boolean changed = false;
-
+        System.err.println(Thread.currentThread().getName() + " - SettingsUpdater.updateSettings(...) - sleeping 15 seconds");
+        try {
+            Thread.sleep(15000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         /*
          * Our cluster state could have unknown or invalid settings that are known and valid in a previous version of Elasticsearch. We can
          * end up in this situation during a rolling upgrade where the previous version will infect the current version of Elasticsearch
