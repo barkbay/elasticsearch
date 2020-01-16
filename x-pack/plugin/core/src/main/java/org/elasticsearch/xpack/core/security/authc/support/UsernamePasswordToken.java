@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -86,13 +88,16 @@ public class UsernamePasswordToken implements AuthenticationToken {
         return extractToken(authStr);
     }
 
+    protected static final Logger logger = LogManager.getLogger(UsernamePasswordToken.class);
+
     private static UsernamePasswordToken extractToken(String headerValue) {
+        logger.info("UsernamePasswordToken.extractToken({})", headerValue);
         if (Strings.isNullOrEmpty(headerValue)) {
             return null;
         }
         if (headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0,
                 BASIC_AUTH_PREFIX.length()) == false) {
-            // the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm
+            logger.info("UsernamePasswordToken.extractToken() : the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm");
             return null;
         }
 

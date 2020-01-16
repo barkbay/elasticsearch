@@ -70,6 +70,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     @Override
     public UsernamePasswordToken token(ThreadContext threadContext) {
+        logger.info("CachingUsernamePasswordRealm.token {}", authenticationEnabled);
         if (authenticationEnabled == false) {
             return null;
         }

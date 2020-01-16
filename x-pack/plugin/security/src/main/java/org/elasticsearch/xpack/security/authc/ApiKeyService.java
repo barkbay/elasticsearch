@@ -293,21 +293,29 @@ public class ApiKeyService {
      */
     void authenticateWithApiKeyIfPresent(ThreadContext ctx, ActionListener<AuthenticationResult> listener) {
         if (isEnabled()) {
+            logger.info("authenticateWithApiKeyIfPresent");
             final ApiKeyCredentials credentials;
             try {
                 credentials = getCredentialsFromHeader(ctx);
+                if (credentials != null) {
+                    logger.info("authenticateWithApiKeyIfPresent, id = {}, key = {}", credentials.getId(), credentials.getKey());
+                } else {
+                    logger.info("authenticateWithApiKeyIfPresent, credentials = null");
+                }
             } catch (IllegalArgumentException iae) {
                 listener.onResponse(AuthenticationResult.unsuccessful(iae.getMessage(), iae));
                 return;
             }
 
             if (credentials != null) {
+                logger.info("authenticateWithApiKeyIfPresent - credentials != null, id = {}, key = {}", credentials.getId(), credentials.getKey());
                 final String docId = credentials.getId();
                 final GetRequest getRequest = client
                         .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, docId)
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
+                    logger.info("authenticateWithApiKeyIfPresent - response.isExists() = {}", response.isExists());
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
                             final Map<String, Object> source = response.getSource();
@@ -415,6 +423,7 @@ public class ApiKeyService {
                                    ActionListener<AuthenticationResult> listener) {
         final String docType = (String) source.get("doc_type");
         final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
+        logger.info("validateApiKeyCredentials - docType = {} - credentials= {}/{}", docType, credentials.getId(), credentials.getKey());
         if ("api_key".equals(docType) == false) {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + docType + "] not an api key", null));
@@ -444,9 +453,11 @@ public class ApiKeyService {
 
                 if (valueAlreadyInCache.get()) {
                     listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                            logger.info("validateApiKeyCredentials - result.success = {}", result.success);
                             if (result.success) {
                                 if (result.verify(credentials.getKey())) {
                                     // move on
+                                    logger.info("validateApiKeyCredentials - result.verify = true");
                                     validateApiKeyExpiration(source, credentials, clock, listener);
                                 } else {
                                     listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
@@ -461,6 +472,7 @@ public class ApiKeyService {
                         threadPool.generic(), threadPool.getThreadContext());
                 } else {
                     final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+                    logger.info("validateApiKeyCredentials - verified = {}", verified);
                     listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                     if (verified) {
                         // move on
@@ -471,6 +483,7 @@ public class ApiKeyService {
                 }
             } else {
                 final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+                logger.info("validateApiKeyCredentials - apiKeyAuthCache == null - verified = {}", verified);
                 if (verified) {
                     // move on
                     validateApiKeyExpiration(source, credentials, clock, listener);
@@ -545,9 +558,14 @@ public class ApiKeyService {
 
     private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
         final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+        logger.info("verifyKeyAgainstHash - apiKeyHash={} - credentials = {}/{}", apiKeyHash, credentials.getId(), credentials.getKey());
         try {
+            logger.info("verifyKeyAgainstHash - get hasher from {}", apiKeyHash.toCharArray());
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-            return hasher.verify(credentials.getKey(), apiKeyHashChars);
+            logger.info("verifyKeyAgainstHash - hasher = {}", hasher.name());
+            boolean result =  hasher.verify(credentials.getKey(), apiKeyHashChars);
+            logger.info("verifyKeyAgainstHash - result = {}", result);
+            return result;
         } finally {
             Arrays.fill(apiKeyHashChars, (char) 0);
         }
@@ -697,6 +715,7 @@ public class ApiKeyService {
     private void findApiKeysForUserRealmApiKeyIdAndNameCombination(String realmName, String userName, String apiKeyName, String apiKeyId,
                                                                    boolean filterOutInvalidatedKeys, boolean filterOutExpiredKeys,
                                                                    ActionListener<Collection<ApiKey>> listener) {
+        logger.info("findApiKeysForUserRealmApiKeyIdAndNameCombination realmName={} userName={}", realmName, userName);
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
@@ -764,7 +783,7 @@ public class ApiKeyService {
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                    logger.debug("Invalidated api key for doc [{}]", updateResponse.getId());
+                                    logger.info("*****  Invalidated api key for doc [{}]", updateResponse.getId());
                                     invalidated.add(updateResponse.getId());
                                 } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
                                     previouslyInvalidated.add(updateResponse.getId());
@@ -786,21 +805,21 @@ public class ApiKeyService {
      * Logs an exception concerning a specific api key at TRACE level (if enabled)
      */
     private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
-        if (logger.isTraceEnabled()) {
+        //if (logger.isTraceEnabled()) {
             if (exception instanceof ElasticsearchException) {
                 final ElasticsearchException esEx = (ElasticsearchException) exception;
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail),
+                    logger.info(() -> new ParameterizedMessage("***** Failure in [{}] for id [{}] - [{}]", action, identifier, detail),
                         esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier),
+                    logger.info(() -> new ParameterizedMessage("***** Failure in [{}] for id [{}]", action, identifier),
                         esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> new ParameterizedMessage("***** Failure in [{}] for id [{}]", action, identifier), exception);
             }
-        }
+        //}
         return exception;
     }
 
@@ -808,19 +827,19 @@ public class ApiKeyService {
      * Logs an exception at TRACE level (if enabled)
      */
     private <E extends Throwable> E traceLog(String action, E exception) {
-        if (logger.isTraceEnabled()) {
+        //if (logger.isTraceEnabled()) {
             if (exception instanceof ElasticsearchException) {
                 final ElasticsearchException esEx = (ElasticsearchException) exception;
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.info(() -> new ParameterizedMessage("***** Failure in [{}] - [{}]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.info(() -> new ParameterizedMessage("***** Failure in [{}]", action), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> new ParameterizedMessage("***** Failure in [{}]", action), exception);
             }
-        }
+        //}
         return exception;
     }
 
@@ -857,7 +876,7 @@ public class ApiKeyService {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
-                    logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
+                    logger.info("***** No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
                         realmName, username, apiKeyName, apiKeyId);
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {

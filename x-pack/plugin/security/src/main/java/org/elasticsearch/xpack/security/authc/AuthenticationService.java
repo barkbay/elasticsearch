@@ -244,7 +244,7 @@ public class AuthenticationService {
             } else {
                 lookForExistingAuthentication((authentication) -> {
                     if (authentication != null) {
-                        logger.trace("Found existing authentication [{}] in request [{}]", authentication, request);
+                        logger.info("Found existing authentication [{}] in request [{}]", authentication, request);
                         listener.onResponse(authentication);
                     } else {
                         tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
@@ -278,7 +278,7 @@ public class AuthenticationService {
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());
-                        logger.debug(new ParameterizedMessage("API key service terminated authentication for request [{}]", request), e);
+                        logger.info(new ParameterizedMessage("API key service terminated authentication for request [{}]", request), e);
                         listener.onFailure(e);
                     } else {
                         if (authResult.getMessage() != null) {
@@ -331,12 +331,14 @@ public class AuthenticationService {
             Runnable action = () -> consumer.accept(null);
             try {
                 if (authenticationToken != null) {
+                    logger.info("extractToken: Realm {}", authenticationToken);
                     action = () -> consumer.accept(authenticationToken);
                 } else {
                     for (Realm realm : defaultOrderedRealmList) {
+                        logger.info("extractToken: Realm {}", realm.name());
                         final AuthenticationToken token = realm.token(threadContext);
                         if (token != null) {
-                            logger.trace("Found authentication credentials [{}] for principal [{}] in request [{}]",
+                            logger.info("extractToken: Found authentication credentials [{}] for principal [{}] in request [{}]",
                                 token.getClass().getName(), token.principal(), request);
                             action = () -> consumer.accept(token);
                             break;
@@ -360,16 +362,17 @@ public class AuthenticationService {
          */
         private void consumeToken(AuthenticationToken token) {
             if (token == null) {
+                logger.info("*** NO TOKEN ****");
                 handleNullToken();
             } else {
                 authenticationToken = token;
                 final List<Realm> realmsList = getRealmList(authenticationToken.principal());
-                logger.trace("Checking token of type [{}] against [{}] realm(s)", token.getClass().getName(), realmsList.size());
+                logger.info("Checking token of type [{}] against [{}] realm(s)", token.getClass().getName(), realmsList.size());
                 final long startInvalidation = numInvalidation.get();
                 final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
                 final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
                     if (realm.supports(authenticationToken)) {
-                        logger.trace("Trying to authenticate [{}] using realm [{}] with token [{}] ",
+                        logger.info("Trying to authenticate [{}] using realm [{}] with token [{}] ",
                             token.principal(), realm, token.getClass().getName());
                         realm.authenticate(authenticationToken, ActionListener.wrap((result) -> {
                             assert result != null : "Realm " + realm + " produced a null authentication result";
@@ -471,16 +474,17 @@ public class AuthenticationService {
         void handleNullToken() {
             final Authentication authentication;
             if (fallbackUser != null) {
-                logger.trace("No valid credentials found in request [{}], using fallback [{}]", request, fallbackUser.principal());
+                logger.info("No valid credentials found in request [{}], using fallback [{}]", request, fallbackUser.principal());
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
                 authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
                     Collections.emptyMap());
             } else if (isAnonymousUserEnabled) {
-                logger.trace("No valid credentials found in request [{}], using anonymous [{}]", request, anonymousUser.principal());
+                logger.info("No valid credentials found in request [{}], using anonymous [{}]", request, anonymousUser.principal());
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
                 authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,
                     Collections.emptyMap());
             } else {
+                logger.info("***** Set authentication to null");
                 authentication = null;
             }
 
@@ -489,7 +493,7 @@ public class AuthenticationService {
                 action = () -> writeAuthToContext(authentication);
             } else {
                 action = () -> {
-                    logger.debug("No valid credentials found in request [{}], rejecting", request);
+                    logger.info("No valid credentials found in request [{}], rejecting", request);
                     listener.onFailure(request.anonymousAccessDenied());
                 };
             }
@@ -756,6 +760,7 @@ public class AuthenticationService {
 
         @Override
         ElasticsearchSecurityException anonymousAccessDenied() {
+            logger.info("***** ANONYMOUS *****");
             auditTrail.anonymousAccessDenied(requestId, request);
             return failureHandler.missingToken(request, threadContext);
         }
