@@ -315,7 +315,7 @@ public class ApiKeyService {
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
-                    logger.info("authenticateWithApiKeyIfPresent - response.isExists() = {}", response.isExists());
+                    logger.info("authenticateWithApiKeyIfPresent - response.isExists() = {}", response.toString());
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
                             final Map<String, Object> source = response.getSource();
