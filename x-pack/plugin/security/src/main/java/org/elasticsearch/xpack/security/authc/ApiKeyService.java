@@ -166,6 +166,7 @@ public class ApiKeyService {
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
+        logger.info("+++ ApiKeyService, enabled={}, hasher={}", this.enabled, this.hasher.name());
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
