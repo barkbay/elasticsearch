@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.SuppressForbidden;
@@ -470,6 +472,7 @@ public enum Hasher {
             return cost == BCRYPT_DEFAULT_COST ? Hasher.BCRYPT : resolve("bcrypt" + cost);
         } else if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash)) {
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - 90)));
+            logger.info("Hasher - resolveFromHash - cost= {} - default is {}", cost, PBKDF2_DEFAULT_COST);
             return cost == PBKDF2_DEFAULT_COST ? Hasher.PBKDF2 : resolve("pbkdf2_" + cost);
         } else if (CharArrays.charsBeginsWith(SHA1_PREFIX, hash)) {
             return Hasher.SHA1;
@@ -497,7 +500,10 @@ public enum Hasher {
         return hasher.verify(data, hash);
     }
 
+    private static final Logger logger = LogManager.getLogger(Hasher.class);
+
     private static char[] getPbkdf2Hash(SecureString data, int cost) {
+        logger.info("Hasher - getPbkdf2Hash(data={},cost={})", data,cost);
         try {
             // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
             // n is 32 (PBKDF2_KEY_LENGTH in bytes) and 2 is because of the dollar sign delimiters.
@@ -518,6 +524,7 @@ public enum Hasher {
     }
 
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
+        logger.info("Hasher - verifyPbkdf2Hash(data={},hash={})", data.toString(), hash);
         // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
         // n is 32 (PBKDF2_KEY_LENGTH in bytes), so tokenLength is 44
         final int tokenLength = 44;
@@ -526,11 +533,13 @@ public enum Hasher {
         char[] computedPwdHash = null;
         try {
             if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
+                logger.info("Hasher - Early return)");
                 return false;
             }
             hashChars = Arrays.copyOfRange(hash, hash.length - tokenLength, hash.length);
             saltChars = Arrays.copyOfRange(hash, hash.length - (2 * tokenLength + 1), hash.length - (tokenLength + 1));
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - (2 * tokenLength + 2))));
+            logger.info("Hasher - verifyPbkdf2Hash(cost={}, hashChars={},saltChars={})", cost, data.toString(), hash);
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
             PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
                 cost, PBKDF2_KEY_LENGTH);
