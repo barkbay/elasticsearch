@@ -300,7 +300,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
+            logger.info("MMO - unmovableSize(" + nodeId + "," + shards.size() + ")");
             ClusterInfo info = this.info;
+            info.getNodeMostAvailableDiskUsages().forEach(c -> logger.info("MMO getNodeMostAvailableDiskUsages - " + c.key + ":" + c.value.getNodeName() + "," + c.value.getFreeBytes()));
             DiskUsage diskUsage = info.getNodeMostAvailableDiskUsages().get(nodeId);
             if (diskUsage == null) {
                 logger.info("MMO - diskUsage == null");
