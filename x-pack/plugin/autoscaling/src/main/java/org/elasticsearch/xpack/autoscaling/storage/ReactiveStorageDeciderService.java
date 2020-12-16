@@ -207,6 +207,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .collect(Collectors.toList());
 
+            logger.info("MMO - candidates length = " + candidates.size());
+            for (ShardRouting s : candidates) {
+                logger.info("MMO - candidate: " + s.toString());
+            }
+
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             Set<ShardRouting> unmovableShards = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
