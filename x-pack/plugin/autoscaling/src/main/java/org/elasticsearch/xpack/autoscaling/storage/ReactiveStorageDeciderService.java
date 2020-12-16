@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -57,6 +60,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
+    private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderService.class);
     public static final String NAME = "reactive_storage";
 
     private final DiskThresholdSettings diskThresholdSettings;
@@ -215,11 +219,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(e -> unmovableSize(e.getKey(), e.getValue()))
                 .sum();
 
+            logger.info("MMO - unmovableBytes=" + unmovableBytes);
+
             long unallocatableBytes = candidates.stream()
                 .filter(not(unmovableShards::contains))
                 .filter(s1 -> cannotAllocateDueToStorage(s1, allocation))
                 .mapToLong(this::sizeOf)
                 .sum();
+
+            logger.info("MMO - unallocatableBytes=" + unmovableBytes);
 
             return unallocatableBytes + unmovableBytes;
         }
@@ -303,7 +311,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
                 thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
             );
+            long fb = diskUsage.getFreeBytes();
+            logger.info("MMO - diskUsage.getFreeBytes()" + fb);
             long missing = threshold - diskUsage.getFreeBytes();
+            logger.info("MMO - missing" + missing);
             return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().getAsLong());
         }
 

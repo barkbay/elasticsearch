@@ -41,7 +41,7 @@ public class AutoscalingLicenseChecker {
      * @return true if autoscaling is allowed, otherwise false
      */
     public boolean isAutoscalingAllowed() {
-        return isAutoscalingAllowed.getAsBoolean();
+        return true;
     }
 
 }
