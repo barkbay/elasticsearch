@@ -212,6 +212,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(s -> allocatedToTier(s, allocation))
                 .filter(s -> cannotRemainDueToStorage(s, allocation))
                 .collect(Collectors.toSet());
+
+            logger.info("MMO - unmovableShards length = " + unmovableShards.size());
+            for (ShardRouting s : unmovableShards) {
+                logger.info("MMO - unmovableShard: " + s.toString());
+            }
+
             long unmovableBytes = unmovableShards.stream()
                 .collect(Collectors.groupingBy(ShardRouting::currentNodeId))
                 .entrySet()
