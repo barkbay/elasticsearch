@@ -303,6 +303,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             ClusterInfo info = this.info;
             DiskUsage diskUsage = info.getNodeMostAvailableDiskUsages().get(nodeId);
             if (diskUsage == null) {
+                logger.info("MMO - diskUsage == null");
                 // do not want to scale up then, since this should only happen when node has just joined (clearly edge case).
                 return 0;
             }
