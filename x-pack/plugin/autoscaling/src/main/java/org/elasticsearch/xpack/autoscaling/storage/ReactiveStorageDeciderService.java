@@ -388,6 +388,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private SingleForecast forecast(IndexAbstraction.DataStream stream, long forecastWindow, long now) {
+            logger.info("MMO - forecast - for stream {}", stream.getName());
             List<IndexMetadata> indices = stream.getIndices();
             if (dataStreamAllocatedToNodes(indices) == false) return null;
             long minCreationDate = Long.MAX_VALUE;
