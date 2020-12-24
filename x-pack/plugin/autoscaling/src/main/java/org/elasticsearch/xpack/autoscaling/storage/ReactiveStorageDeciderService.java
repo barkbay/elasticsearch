@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,6 +60,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
+    private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderService.class);
+
     public static final String NAME = "reactive_storage";
 
     private final DiskThresholdSettings diskThresholdSettings;
@@ -172,6 +176,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public long storagePreventsAllocation() {
             RoutingNodes routingNodes = new RoutingNodes(state, false);
+            logger.info("MMO - routingNodes:{}", routingNodes);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
                 routingNodes,
@@ -348,12 +353,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public AllocationState forecast(long forecastWindow, long now) {
+            logger.info("MMO - forecastWindow:{} - state.metadata:{}", forecastWindow, state.metadata().toString());
             if (forecastWindow == 0) {
                 return this;
             }
             // for now we only look at data-streams. We might want to also detect alias based time-based indices.
             DataStreamMetadata dataStreamMetadata = state.metadata().custom(DataStreamMetadata.TYPE);
             if (dataStreamMetadata == null) {
+                logger.info("MMO - no dataStreamMetadata");
                 return this;
             }
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
@@ -365,6 +372,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             if (singleForecasts.isEmpty()) {
+                logger.info("MMO - no singleForecasts");
                 return this;
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
@@ -389,6 +397,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             while (count < indices.size()) {
                 ++count;
                 IndexMetadata indexMetadata = indices.get(indices.size() - count);
+                logger.info("MMO - forecast - Analysing index {}", indexMetadata.getIndex());
                 long creationDate = indexMetadata.getCreationDate();
                 if (creationDate < 0) {
                     return null;
@@ -400,15 +409,17 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     break;
                 }
             }
-
+            logger.info("MMO - forecast - totalSize {}", totalSize);
             if (totalSize == 0) {
                 return null;
             }
 
             // round up
             long avgSizeCeil = (totalSize - 1) / count + 1;
+            logger.info("MMO - forecast - avgSizeCeil {}", avgSizeCeil);
 
             long actualWindow = now - minCreationDate;
+            logger.info("MMO - forecast - actualWindow {}", actualWindow);
             if (actualWindow == 0) {
                 return null;
             }

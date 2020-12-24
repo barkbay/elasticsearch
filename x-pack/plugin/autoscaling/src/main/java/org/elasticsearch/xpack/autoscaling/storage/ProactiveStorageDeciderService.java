@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -27,6 +29,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class ProactiveStorageDeciderService implements AutoscalingDeciderService {
+    private static final Logger logger = LogManager.getLogger(ProactiveStorageDeciderService.class);
+
     public static final String NAME = "proactive_storage";
     public static final Setting<TimeValue> FORECAST_WINDOW = Setting.timeSetting("forecast_window", TimeValue.timeValueMinutes(30));
 
@@ -75,6 +79,8 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
         long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
+        logger.info("MMO - unassignedBytesBeforeForecast:{} - unassignedBytes:{} - assignedBytes:{} - maxShardSize:{}",
+            unassignedBytesBeforeForecast, unassignedBytes, assignedBytes, maxShardSize);
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;
         assert maxShardSize >= 0;
