@@ -176,7 +176,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public long storagePreventsAllocation() {
             RoutingNodes routingNodes = new RoutingNodes(state, false);
-            logger.info("MMO - routingNodes:{}", routingNodes);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
                 routingNodes,
@@ -416,10 +415,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             // round up
             long avgSizeCeil = (totalSize - 1) / count + 1;
-            logger.info("MMO - forecast - avgSizeCeil {}", avgSizeCeil);
 
             long actualWindow = now - minCreationDate;
-            logger.info("MMO - forecast - actualWindow {}", actualWindow);
+            logger.info("MMO - forecast - avgSizeCeil {} - actualWindow {}", avgSizeCeil, actualWindow);
             if (actualWindow == 0) {
                 return null;
             }
@@ -435,12 +433,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 // round up
                 numberNewIndices = (int) Math.min((scaledTotalSize - 1) / avgSizeCeil + 1, indices.size());
                 if (scaledTotalSize == 0) {
+                    logger.info("MMO - scaledTotalSize=0 return");
                     return null;
                 }
             } else {
                 numberNewIndices = count;
                 scaledTotalSize = totalSize;
             }
+            logger.info("MMO - numberNewIndices={} - scaledTotalSize:{}", numberNewIndices,scaledTotalSize);
 
             IndexMetadata writeIndex = stream.getWriteIndex();
 
