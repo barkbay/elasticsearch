@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,6 +65,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
+    private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderService.class);
+
     public static final String NAME = "reactive_storage";
 
     private final DiskThresholdSettings diskThresholdSettings;
@@ -412,12 +416,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public AllocationState forecast(long forecastWindow, long now) {
+            logger.info("[MMO] forecast [forecastWindow: {}, now: {}]", forecastWindow,now);
             if (forecastWindow == 0) {
                 return this;
             }
             // for now we only look at data-streams. We might want to also detect alias based time-based indices.
             DataStreamMetadata dataStreamMetadata = state.metadata().custom(DataStreamMetadata.TYPE);
             if (dataStreamMetadata == null) {
+                logger.info("[MMO] No data stream");
                 return this;
             }
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
@@ -429,6 +435,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             if (singleForecasts.isEmpty()) {
+                logger.info("[MMO] singleForecasts.isEmpty()");
                 return this;
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
@@ -454,6 +461,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private SingleForecast forecast(IndexAbstraction.DataStream stream, long forecastWindow, long now) {
+            logger.info("[MMO] forecasting stream {}", stream.getName());
             List<IndexMetadata> indices = stream.getIndices();
             if (dataStreamAllocatedToNodes(indices) == false) return null;
             long minCreationDate = Long.MAX_VALUE;
@@ -474,6 +482,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 }
             }
 
+            logger.info("[MMO] forecasting stream {} - total size: {}", stream.getName(),totalSize);
             if (totalSize == 0) {
                 return null;
             }
@@ -482,6 +491,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             long avgSizeCeil = (totalSize - 1) / count + 1;
 
             long actualWindow = now - minCreationDate;
+            logger.info("[MMO] forecasting stream {} - actualWindow: {}", stream.getName(),actualWindow);
             if (actualWindow == 0) {
                 return null;
             }
@@ -494,14 +504,17 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .multiply(BigInteger.valueOf(forecastWindow))
                     .divide(BigInteger.valueOf(actualWindow))
                     .longValueExact();
+                logger.info("[MMO] forecasting stream {} - scaledTotalSize: {}", stream.getName(),scaledTotalSize);
                 // round up
                 numberNewIndices = (int) Math.min((scaledTotalSize - 1) / avgSizeCeil + 1, indices.size());
+                logger.info("[MMO] forecasting stream {} - numberNewIndices: {}", stream.getName(),numberNewIndices);
                 if (scaledTotalSize == 0) {
                     return null;
                 }
             } else {
                 numberNewIndices = count;
                 scaledTotalSize = totalSize;
+                logger.info("[MMO] forecasting stream {} - scaledTotalSize: {} - numberNewIndices: {}", stream.getName(),scaledTotalSize, numberNewIndices);
             }
 
             IndexMetadata writeIndex = stream.getWriteIndex();
@@ -524,7 +537,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 newIndices.put(newIndex, size);
                 dataStream = dataStream.rollover(newIndex.getIndex(), Version.CURRENT);
             }
-
+            logger.info("[MMO] forecasting stream {} - SingleForecast - newIndices: {} - dataStream: {}", stream.getName(),newIndices, dataStream);
             return new SingleForecast(newIndices, dataStream);
         }
 
